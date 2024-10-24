@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мини-игра: Лимоны</title>
+    <style>
+        body {
+            margin: 0;
+            height: 100vh; /* Высота на весь экран */
+            width: 100vw; /* Ширина на весь экран */
+            overflow: hidden; /* Скрыть прокрутку */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: Arial, sans-serif;
+          
+        }
+        #loading-screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        #loading-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Заполнение фона видео */
+            z-index: 1;
+        }
+        #loading-bar {
+            width: 300px;
+            height: 30px;
+            background-color: #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 20px;
+            z-index: 2;
+        }
+        #loading-progress {
+            height: 100%;
+            width: 0;
+            background-color: #76c7c0;
+            transition: width 0.1s;
+        }
+        #menu {
+            display: none;
+            flex-direction: column;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            border: 2px solid black;
+            border-radius: 25px;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .lemon {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: url('https://i.postimg.cc/7PS5yC0z/Pngtree-a-lemon-4634245.png') no-repeat center center;
+            background-size: contain;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            color: black; /* Черный цвет счетчика */
+            display: none; /* Скрыт до начала игры */
+        }
+        #broken-score {
+            position: absolute;
+            top: 40px;
+            left: 10px;
+            font-size: 24px;
+            color: black; /* Черный цвет счетчика разбитых лимонов */
+            display: none; /* Скрыт до начала игры */
+        }
+        #basket {
+            position: absolute;
+            top: 70px; /* Расположение корзинки под счетчиком */
+            left: 10px; /* Расположение корзинки */
+            width: 80px; /* Ширина корзинки */
+            height: 80px; /* Высота корзинки */
+            background: url('https://i.postimg.cc/pdMS46Hz/removebg-preview.png') no-repeat center center;
+            background-size: contain;
+            display: none; /* Скрыта до начала игры */
+        }
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            display: none;
+            color: black; /* Черный цвет текста */
+            text-align: center; /* Центрирование текста */
+        }
+        #restart-button {
+            display: none; /* Скрыта до окончания игры */
+            margin-top: 20px; /* Отступ сверху */
+            margin-left: 20px; /* Отступ слева для смещения вправо */
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-screen">
+        <video id="loading-video" autoplay muted preload="auto">
+            <source src="https://cdn.glitch.me/a775ce17-fe4e-4c34-99c4-e8a51265bc6b/7021884_Above%20View_Abstract_4096x2160.mp4?v=1729677083483" type="video/mp4">
+            Ваш браузер не поддерживает видео.
+        </video>
+        <h1>Загрузка...</h1>
+        <div id="loading-bar">
+            <div id="loading-progress"></div>
+        </div>
+    </div>
+   
+</body>
+</html>
+
+    <div id="menu">
+        <h1>Меню игры</h1>
+        <button id="start-button" class="button">Начать игру!</button>
+        <button id="updates-button" class="button">Обновления</button>
+        <button id="about-button" class="button">О нас</button>
+    </div>
+    <div id="score">Счет: 0</div>
+    <div id="broken-score">Разбитые лимоны: 0/6</div>
+    <div id="basket"></div> <!-- Корзинка -->
+    <div id="game-over">
+        Игра окончена! Счет: <span id="final-score"></span>
+        <br>
+        <button id="restart-button" class="button">Начать сначала</button>
+    </div>
+    <script>
+        let score = 0;
+        let brokenScore = 0; // Счет разбитых лимонов
+        let missedLemons = 0;
+        let gameActive = false;
+        let lemonFallSpeed = 100; // Начальная скорость падения
+        let lemonInterval;
+
+        function createLemon() {
+            const lemon = document.createElement('div');
+            lemon.className = 'lemon';
+            lemon.style.left = Math.random() * (window.innerWidth - 50) + 'px';
+            lemon.style.top = '0px';
+            document.body.appendChild(lemon);
+
+            lemon.addEventListener('click', function() {
+                score++;
+                document.getElementById('score').innerText = 'Счет: ' + score;
+                document.body.removeChild(lemon);
+            });
+
+            let top = 0;
+            let fallInterval = setInterval(function() {
+                top += 3; // Увеличиваем на 3 пикселя для более быстрого падения
+                lemon.style.top = top + 'px';
+
+                if (top > window.innerHeight - 80) { // Проверка на падение в самый низ
+                    clearInterval(fallInterval);
+                    document.body.removeChild(lemon);
+                    missedLemons++;
+                    brokenScore++;
+                    document.getElementById('broken-score').innerText = 'Разбитые лимоны: ' + brokenScore + '/6';
+                    if (missedLemons >= 6) {
+                        endGame();
+                    }
+                }
+            }, lemonFallSpeed);
+        }
+
+        function endGame() {
+            gameActive = false;
+            clearInterval(lemonInterval);
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('game-over').style.display = 'block';
+            document.getElementById('basket').style.display = 'none'; // Скрыть корзинку
+            document.getElementById('score').style.display = 'none'; // Скрыть счетчик
+            document.getElementById('broken-score').style.display = 'none'; // Скрыть счетчик разбитых лимонов
+            document.getElementById('restart-button').style.display = 'block'; // Показать кнопку перезапуска
+            
+            // Очистка всех лимонов с экрана
+            const lemons = document.getElementsByClassName('lemon');
+            while (lemons.length > 0) {
+                lemons[0].parentNode.removeChild(lemons[0]);
+            }
+        }
+
+        function startGame() {
+            score = 0; // Сброс счетчика
+            brokenScore = 0; // Сброс счетчика разбитых лимонов
+            missedLemons = 0; // Сброс счетчика пропущенных лимонов
+            document.getElementById('score').innerText = 'Счет: ' + score;
+            document.getElementById('broken-score').innerText = 'Разбитые лимоны: ' + brokenScore + '/6';
+            document.getElementById('score').style.display = 'block'; // Показать счетчик
+            document.getElementById('broken-score').style.display = 'block'; // Показать счетчик разбитых лимонов
+            document.getElementById('basket').style.display = 'block'; // Показать корзинку
+            gameActive = true;
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('menu').style.display = 'none'; // Скрыть меню
+            document.getElementById('restart-button').style.display = 'none'; // Скрыть кнопку перезапуска
+            
+            lemonInterval = setInterval(() => {
+                createLemon();
+                lemonFallSpeed = Math.max(30, lemonFallSpeed - 10); // Уменьшаем скорость падения быстрее
+            }, 1000); // Интервал создания лимонов
+        }
+
+        function resetGame() {
+            // Сброс всех параметров игры
+            score = 0;
+            brokenScore = 0;
+            missedLemons = 0;
+            lemonFallSpeed = 100; // Сброс скорости падения
+            document.getElementById('score').innerText = 'Счет: ' + score;
+            document.getElementById('broken-score').innerText = 'Разбитые лимоны: ' + brokenScore + '/6';
+            document.getElementById('score').style.display = 'block'; // Показать счетчик
+            document.getElementById('broken-score').style.display = 'block'; // Показать счетчик разбитых лимонов
+            document.getElementById('basket').style.display = 'block'; // Показать корзинку
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('menu').style.display = 'none'; // Скрыть меню
+            document.getElementById('restart-button').style.display = 'none'; // Скрыть кнопку перезапуска
+        }
+
+        function showMenu() {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('menu').style.display = 'flex'; // Показать меню
+        }
+
+        // Загрузка
+        let loadingProgress = 0;
+        const loadingInterval = setInterval(function() {
+            loadingProgress += 1;
+            document.getElementById('loading-progress').style.width = loadingProgress + '%';
+            if (loadingProgress >= 100) {
+                clearInterval(loadingInterval);
+                showMenu();
+            }
+        }, 60); // 6 секунд загрузки
+
+        document.getElementById('start-button').onclick = function() {
+            resetGame();
+            startGame();
+        };
+        document.getElementById('restart-button').onclick = function() {
+            resetGame();
+            startGame(); // Перезапуск игры
+        };
+        document.getElementById('updates-button').onclick = function() {
+            alert('Обновления: Игра в процессе разработки!');
+        };
+        document.getElementById('about-button').onclick = function() {
+            alert('О нас: Мы команда разработчиков игр!');
+        };
+    </script>
+</body>
+</html>
